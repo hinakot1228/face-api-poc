@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Face Recognition</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <h1>Face Recognition with face-api.js</h1>
+    <div class="container">
+      <video id="video" autoplay muted></video>
+      <canvas id="overlay"></canvas>
+    </div>
+    <!-- face-api.jsを最初に読み込む -->
+    <script src="./face-api.min.js"></script>
+    <!-- カスタムスクリプトを後に読み込む -->
+    <script src="script.js" defer></script>
+  </body>
+</html>
