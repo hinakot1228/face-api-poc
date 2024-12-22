@@ -18,7 +18,9 @@ async function loadModels() {
     const MODEL_URL = "./weights";
     await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
     await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+    await faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL);
     await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+    await faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL);
     console.log("Models loaded successfully");
   } catch (error) {
     console.error("Error loading models:", error);
@@ -26,7 +28,6 @@ async function loadModels() {
 }
 
 async function onPlay() {
-  console.log("!video.paused && !video.ended", !video.paused && !video.ended);
   // ビデオが再生中の場合
   if (!video.paused && !video.ended) {
     const detections = await faceapi
@@ -35,9 +36,8 @@ async function onPlay() {
         new faceapi.TinyFaceDetectorOptions({ inputSize: 416 })
       )
       .withFaceLandmarks()
-      .withFaceDescriptors();
-
-    console.log(detections);
+      .withFaceDescriptors()
+      .withAgeAndGender();
 
     const resizedDetections = faceapi.resizeResults(detections, displaySize);
 
@@ -46,21 +46,35 @@ async function onPlay() {
 
     faceapi.draw.drawDetections(canvas, resizedDetections);
     faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
+
+    // 年齢と性別の推定結果を描画
+    resizedDetections.forEach((detection) => {
+      const { age, gender } = detection;
+      const { x, y, width, height } = detection.detection.box;
+
+      // 顔の領域を画像として取得
+      const faceImageData = ctx.getImageData(x, y, width, height);
+
+      // 肌の色を推定する（簡単な方法としてRGBの平均色を計算）
+      const skinColor = estimateSkinColor(faceImageData.data);
+
+      console.log("skinColor", skinColor);
+
+      // 年齢と性別を描画
+      const text = `${Math.round(age)} years old, ${gender}`;
+      ctx.fillStyle = "red";
+      ctx.fillText(text, x, y - 30); // 顔の上部に表示
+    });
   }
   requestAnimationFrame(onPlay);
 }
 
 async function main() {
-  console.log("main");
   await loadModels();
   await startVideo();
 
   // ビデオがメタデータを読み込んだ後に幅と高さを取得
   video.addEventListener("loadedmetadata", () => {
-    console.log("Video metadata loaded");
-
-    console.log(video.videoWidth, video.videoHeight); // 正しい幅と高さが表示されるはず
-
     const displaySize = { width: video.videoWidth, height: video.videoHeight };
 
     // キャンバスのサイズをビデオに合わせる
@@ -69,10 +83,41 @@ async function main() {
 
     // 顔認識を開始
     video.addEventListener("play", () => {
-      console.log("play");
       onPlay();
     });
   });
+}
+
+// 簡単な肌の色推定関数（RGBの平均色を計算）
+function estimateSkinColor(data) {
+  let r = 0,
+    g = 0,
+    b = 0;
+  let count = 0;
+
+  // ピクセルデータからRGBの値を取得
+  for (let i = 0; i < data.length; i += 4) {
+    r += data[i]; // Red
+    g += data[i + 1]; // Green
+    b += data[i + 2]; // Blue
+    count++;
+  }
+
+  // 平均色を計算
+  r = Math.round(r / count);
+  g = Math.round(g / count);
+  b = Math.round(b / count);
+
+  console.log("r g b", r, g, b);
+
+  // 簡単な方法で肌の色を推定（実際にはもっと複雑なアルゴリズムを使うことができます）
+  if (r > 150 && g > 100 && b < 100) {
+    return "Light skin";
+  } else if (r > 120 && g > 90 && b < 90) {
+    return "Medium skin";
+  } else {
+    return "Dark skin";
+  }
 }
 
 main();
