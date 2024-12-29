@@ -1,6 +1,9 @@
 const video = document.getElementById("video");
 const canvas = document.getElementById("overlay");
 const displaySize = { width: 640, height: 480 };
+const canvasOverlay = document.getElementById("snapshot-overlay");
+
+const captureButton = document.getElementById("capture");
 
 async function startVideo() {
   try {
@@ -30,6 +33,9 @@ async function loadModels() {
 async function onPlay() {
   // ビデオが再生中の場合
   if (!video.paused && !video.ended) {
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
     const detections = await faceapi
       .detectAllFaces(
         video,
@@ -41,8 +47,7 @@ async function onPlay() {
 
     const resizedDetections = faceapi.resizeResults(detections, displaySize);
 
-    const ctx = canvas.getContext("2d");
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     faceapi.draw.drawDetections(canvas, resizedDetections);
     faceapi.draw.drawFaceLandmarks(canvas, resizedDetections);
@@ -52,16 +57,21 @@ async function onPlay() {
       const { age, gender } = detection;
       const { x, y, width, height } = detection.detection.box;
 
-      // 顔の領域を画像として取得
-      const faceImageData = ctx.getImageData(x, y, width, height);
+      const nosePoints = detection.landmarks.getNose();
+      const noseTip = nosePoints[4];
 
-      // 肌の色を推定する（簡単な方法としてRGBの平均色を計算）
-      const skinColor = estimateSkinColor(faceImageData.data);
+      const boxSize = 10;
+      const startX = Math.max(0, Math.round(noseTip.x - boxSize / 2));
+      const startY = Math.max(0, Math.round(noseTip.y - boxSize / 2));
 
-      console.log("skinColor", skinColor);
+      const noseData = ctx.getImageData(startX, startY, boxSize, boxSize);
+      console.log("noseData", noseData);
+      // const { r, g, b } = calculateAverageColor(noseData.data);
+
+      // const colorCode = rgbToHex(r, g, b);
 
       // 年齢と性別を描画
-      const text = `${Math.round(age)} years old, ${gender}`;
+      const text = `${Math.round(age)} years old, ${gender} average color`;
       ctx.fillStyle = "red";
       ctx.fillText(text, x, y - 30); // 顔の上部に表示
     });
@@ -88,36 +98,19 @@ async function main() {
   });
 }
 
-// 簡単な肌の色推定関数（RGBの平均色を計算）
-function estimateSkinColor(data) {
-  let r = 0,
-    g = 0,
-    b = 0;
-  let count = 0;
+captureButton.addEventListener("click", () => {
+  const context = canvas.getContext("2d");
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-  // ピクセルデータからRGBの値を取得
-  for (let i = 0; i < data.length; i += 4) {
-    r += data[i]; // Red
-    g += data[i + 1]; // Green
-    b += data[i + 2]; // Blue
-    count++;
-  }
-
-  // 平均色を計算
-  r = Math.round(r / count);
-  g = Math.round(g / count);
-  b = Math.round(b / count);
-
-  console.log("r g b", r, g, b);
-
-  // 簡単な方法で肌の色を推定（実際にはもっと複雑なアルゴリズムを使うことができます）
-  if (r > 150 && g > 100 && b < 100) {
-    return "Light skin";
-  } else if (r > 120 && g > 90 && b < 90) {
-    return "Medium skin";
-  } else {
-    return "Dark skin";
-  }
-}
+  const canvasData = context.getImageData(
+    0,
+    0,
+    displaySize.width,
+    displaySize.height
+  );
+  console.log("canvasData", canvasData);
+});
 
 main();
