@@ -5,6 +5,8 @@ const canvasOverlay = document.getElementById("snapshot-overlay");
 
 const captureButton = document.getElementById("capture");
 
+let isRunning = false;
+
 async function startVideo() {
   try {
     // Webカメラのストリーミングを開始
@@ -31,6 +33,8 @@ async function loadModels() {
 }
 
 async function onPlay() {
+  if (!isRunning) return;
+
   // ビデオが再生中の場合
   if (!video.paused && !video.ended) {
     const ctx = canvas.getContext("2d");
@@ -58,7 +62,7 @@ async function onPlay() {
       const { x, y, width, height } = detection.detection.box;
 
       const nosePoints = detection.landmarks.getNose();
-      const noseTip = nosePoints[4];
+      const noseTip = nosePoints[3];
 
       const boxSize = 10;
       const startX = Math.max(0, Math.round(noseTip.x - boxSize / 2));
@@ -66,9 +70,10 @@ async function onPlay() {
 
       const noseData = ctx.getImageData(startX, startY, boxSize, boxSize);
       console.log("noseData", noseData);
-      // const { r, g, b } = calculateAverageColor(noseData.data);
+      const { r, g, b } = calculateAverageColor(noseData.data);
 
-      // const colorCode = rgbToHex(r, g, b);
+      const colorCode = rgbToHex(r, g, b);
+      console.log("colorCode", colorCode);
 
       // 年齢と性別を描画
       const text = `${Math.round(age)} years old, ${gender} average color`;
@@ -77,6 +82,34 @@ async function onPlay() {
     });
   }
   requestAnimationFrame(onPlay);
+}
+
+function calculateAverageColor(data) {
+  let r = 0,
+    g = 0,
+    b = 0;
+  let count = 0;
+
+  for (let i = 0; i < data.length; i += 4) {
+    const alpha = data[i + 3];
+    if (alpha > 0) {
+      r += data[i];
+      g += data[i + 1];
+      b += data[i + 2];
+      count++;
+    }
+  }
+
+  return {
+    r: Math.round(r / count),
+    g: Math.round(g / count),
+    b: Math.round(b / count),
+  };
+}
+
+function rgbToHex(r, g, b) {
+  const toHex = (component) => component.toString(16).padStart(2, "0");
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`;
 }
 
 async function main() {
@@ -91,9 +124,18 @@ async function main() {
     canvas.width = displaySize.width;
     canvas.height = displaySize.height;
 
-    // 顔認識を開始
-    video.addEventListener("play", () => {
-      onPlay();
+    // ボタンを取得
+    const button = document.getElementById("capture");
+
+    // ボタンで制御
+    button.addEventListener("click", () => {
+      if (!isRunning) {
+        isRunning = true; // フラグをオン
+        onPlay(); // 処理を開始
+      } else {
+        isRunning = false; // フラグをオフ
+        console.log("Stopped processing");
+      }
     });
   });
 }
